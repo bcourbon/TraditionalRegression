@@ -25,6 +25,12 @@
 #include "RooArgList.h"
 #include "RooCBShape.h"
 #include "RooAddPdf.h"
+#include "RooDoubleCB.h"
+#include "RooClassFactory.h"
+#ifndef __CINT__
+#include "RooGlobalFunc.h"
+#endif
+#include "TROOT.h"
 
 #include <TSystem.h>
 #include <TFile.h>
@@ -60,18 +66,24 @@ void RegressionTest::init(string RegFileName, std::string DataFileName, std::str
 
   TFile *file = new TFile(RegFileName.c_str(),"READ");
   
-  varlist = (std::vector<std::string>*)file->Get("varlistEB");
-  forest = (GBRForest*)file->Get("EBCorrection");
+  varlistEB = (std::vector<std::string>*)file->Get("varlistEB");
+  forestEB = (GBRForest*)file->Get("EBCorrection");
+  numvarsEB = varlistEB->size();
+
+  varlistEE = (std::vector<std::string>*)file->Get("varlistEE");
+  forestEE = (GBRForest*)file->Get("EECorrection");
+  numvarsEE = varlistEE->size();
   
-  numvars = varlist->size();
-  numtrees = forest->Trees().size();
-  
-  printf("liste des variables \n");
-  for (int ivar = 0; ivar<numvars; ++ivar) {
-    printf("%i: %s\n",ivar, varlist->at(ivar).c_str());
+  printf("liste des variables Barrel \n");
+  for (int ivar = 0; ivar<numvarsEB; ++ivar) {
+    printf("%i: %s\n",ivar, varlistEB->at(ivar).c_str());
   }
-  printf("nombre de trees : %i \n",numtrees); 
-  
+
+  printf("liste des variables Endcaps \n");
+  for (int ivar = 0; ivar<numvarsEE; ++ivar) {
+    printf("%i: %s\n",ivar, varlistEE->at(ivar).c_str());
+  }
+
   TFile *datafile = TFile::Open(DataFileName.c_str());
   TDirectory *dir = (TDirectory*)datafile->FindObjectAny(DirName.c_str());
   tree = (TTree*)dir->Get(TreeName.c_str());  
@@ -84,126 +96,126 @@ void RegressionTest::PlotResponse()
 /*****************************************************************/
 {
 
+  double Eta,Phi,EtaWidth,PhiWidth,R9,Nvtx,Eraw,Etrue,Pt;
   double Correction; // Ecor/Eraw
   double RawBias;    // Eraw/Etrue
   double CorBias;    // Ecor/Etrue
 
   //vector of variables of interest
-  std::vector<std::string> InputVars;
-  for (int ivar = 0; ivar<numvars; ++ivar) {
-  	InputVars.push_back(varlist->at(ivar));    
+  std::vector<std::string> InputVarsEB;
+  for (int ivar = 0; ivar<numvarsEB; ++ivar) {
+  	InputVarsEB.push_back(varlistEB->at(ivar));    
   }
-  InputVars.push_back("genEnergy");  
-  InputVars.push_back("genPt");  
-  unsigned int numvars2=InputVars.size();
+  InputVarsEB.push_back("genEnergy");  
+  InputVarsEB.push_back("genPt");  
+  unsigned int numvars2EB=InputVarsEB.size();
  
-  //to read the variables in the ttree
-  std::vector<TTreeFormula*> inputforms;
-  for (std::vector<std::string>::const_iterator it = InputVars.begin(); it != InputVars.end(); ++it) {
-	inputforms.push_back(new TTreeFormula(it->c_str(),it->c_str(),tree));
+  std::vector<std::string> InputVarsEE;
+  for (int ivar = 0; ivar<numvarsEE; ++ivar) {
+  	InputVarsEE.push_back(varlistEE->at(ivar));    
   }
-  
+  InputVarsEE.push_back("genEnergy");  
+  InputVarsEE.push_back("genPt");  
+  unsigned int numvars2EE=InputVarsEE.size();
+
+  //to read the variables in the ttree
+  std::vector<TTreeFormula*> inputformsEB;
+  for (std::vector<std::string>::const_iterator it = InputVarsEB.begin(); it != InputVarsEB.end(); ++it) {
+	inputformsEB.push_back(new TTreeFormula(it->c_str(),it->c_str(),tree));
+  }
+
+  std::vector<TTreeFormula*> inputformsEE;
+  for (std::vector<std::string>::const_iterator it = InputVarsEE.begin(); it != InputVarsEE.end(); ++it) {
+	inputformsEE.push_back(new TTreeFormula(it->c_str(),it->c_str(),tree));
+  }  
+
   //contains ttree events
-  float* Event;
-  Event = new float[numvars2];
+  float* EventEB;
+  EventEB = new float[numvars2EB];
+  float* EventEE;
+  EventEE = new float[numvars2EE];
 
-
-  TH1D *hCor=new TH1D("Ecor/Eraw","Ecor/Eraw",500,0.8,1.2);
-  TH1D *hBiasCor=new TH1D("Ecor/Etrue","Ecor/Etrue",500,0.8,1.2);
-  TH1D *hBiasRaw=new TH1D("Eraw/Etrue","Eraw/Etrue",500,0.8,1.2);
+  //Declare all histograms
+  TH1D *hCor=new TH1D("Ecor/Eraw","Ecor/Eraw",100,0.8,1.2);
+  TH1D *hBiasCor=new TH1D("Ecor/Etrue","Ecor/Etrue",100,0.8,1.2);
+  TH1D *hBiasRaw=new TH1D("Eraw/Etrue","Eraw/Etrue",100,0.8,1.2);
   
-  TH2D *hCor_Eta=new TH2D("Ecor/Eraw vs Eta","Ecor/Eraw vs Eta",500,-3,3,500,0,2);
-  TH2D *hCor_Phi=new TH2D("Ecor/Eraw vs Phi","Ecor/Eraw vs Phi",500,-3.14,3.14,500,0,2);
-  TH2D *hCor_EtaWidth=new TH2D("Ecor/Eraw vs Eta Width","Ecor/Eraw vs Eta Width",500,0,0.03,500,0,2);
-  TH2D *hCor_PhiWidth=new TH2D("Ecor/Eraw vs Phi Width","Ecor/Eraw vs Phi Width",500,0,0.1,500,0,2);
-  TH2D *hCor_R9=new TH2D("Ecor/Eraw vs R9","Ecor/Eraw vs R9",500,0,1.2,500,0,2);
-  TH2D *hCor_Nvtx=new TH2D("Ecor/Eraw vs nVtx","Ecor/Eraw vs nVtx",500,0,50,500,0,2);
+  TH2D *hCor_Eta=new TH2D("Ecor/Eraw vs Eta","Ecor/Eraw vs Eta",100,-3,3,500,0,2);
+  TH2D *hCor_Phi=new TH2D("Ecor/Eraw vs Phi","Ecor/Eraw vs Phi",100,-3.14,3.14,500,0,2);
+  TH2D *hCor_EtaWidth=new TH2D("Ecor/Eraw vs Eta Width","Ecor/Eraw vs Eta Width",100,0,0.03,500,0,2);
+  TH2D *hCor_PhiWidth=new TH2D("Ecor/Eraw vs Phi Width","Ecor/Eraw vs Phi Width",100,0,0.1,500,0,2);
+  TH2D *hCor_R9=new TH2D("Ecor/Eraw vs R9","Ecor/Eraw vs R9",100,0,1.2,500,0,2);
+  TH2D *hCor_Nvtx=new TH2D("Ecor/Eraw vs nVtx","Ecor/Eraw vs nVtx",100,0,50,500,0,2);
 
-  std::vector<TH1*> HistPt;
-  for (int i=0;i<10;i++) HistPt.push_back(new TH1D(Form("Ecor/Etrue for %i < Pt <%i ",i*10,(i+1)*10),Form("Ecor/Etrue for %i < Pt <%i ",i*10,(i+1)*10),500,0.5,1.5));
+  std::vector<TH1*> HistPt1;//for 0<|eta|<1
+  std::vector<TH1*> HistPt2;//for 1<|eta|<1.479
+  std::vector<TH1*> HistPt3;//for 1.479<|eta|<2
+  std::vector<TH1*> HistPt4;//for 2<|eta|<2.5
+  for (int i=0;i<10;i++){ 
+	HistPt1.push_back(new TH1D(Form("Ecor/Etrue for %i < Pt <%i and 0<|eta|<1",i*10,(i+1)*10),Form("Ecor/Etrue for %i < Pt <%i ",i*10,(i+1)*10),99,0.8,1.2));
+	HistPt2.push_back(new TH1D(Form("Ecor/Etrue for %i < Pt <%i and 1<|eta|<1.48",i*10,(i+1)*10),Form("Ecor/Etrue for %i < Pt <%i ",i*10,(i+1)*10),99,0.8,1.2));
+  	HistPt3.push_back(new TH1D(Form("Ecor/Etrue for %i < Pt <%i and 1.48<|eta|<2",i*10,(i+1)*10),Form("Ecor/Etrue for %i < Pt <%i ",i*10,(i+1)*10),49,0.8,1.2));
+	HistPt4.push_back(new TH1D(Form("Ecor/Etrue for %i < Pt <%i and 2<|eta|<2.5",i*10,(i+1)*10),Form("Ecor/Etrue for %i < Pt <%i ",i*10,(i+1)*10),49,0.8,1.2));
+  }
 
-  
+  //Loop on tree events
+
   for (Long64_t ievt=0; ievt<tree->GetEntries();ievt++){
         if(ievt%10000==0) printf("%lld / %lld \n",ievt,tree->GetEntries());
   	tree->LoadTree(ievt);
-    	for (unsigned int ivar=0; ivar<numvars2; ++ivar) {
-        	Event[ivar] = inputforms[ivar]->EvalInstance();
-    	}
-        if (fabs(Event[1])<1.48){    	
-	Correction=forest->GetResponse(Event);
-        double Eraw=Event[32];
-	double Etrue=Event[33];
+        Eta=inputformsEB[1]->EvalInstance();
+	if (fabs(Eta)<1.479){
+                for (unsigned int ivar=0; ivar<numvars2EB; ++ivar) EventEB[ivar] = inputformsEB[ivar]->EvalInstance();
+		Correction=forestEB->GetResponse(EventEB);
+		Phi=EventEB[2];
+		EtaWidth=EventEB[3];
+		PhiWidth=EventEB[4];
+		R9=EventEB[5];
+		Nvtx=EventEB[0];
+        	Eraw=EventEB[32];
+		Etrue=EventEB[33];
+		Pt=EventEB[34];
+	}
+	else{
+		for (unsigned int ivar=0; ivar<numvars2EE; ++ivar) EventEE[ivar] = inputformsEE[ivar]->EvalInstance();	
+		Correction=forestEE->GetResponse(EventEE);
+		Phi=EventEE[2];
+		EtaWidth=EventEE[3];
+		PhiWidth=EventEE[4];
+		R9=EventEE[5];
+		Nvtx=EventEE[0];
+        	Eraw=EventEE[29];
+		Etrue=EventEE[30];
+		Pt=EventEE[31];
+	}
         RawBias=Eraw/Etrue;
 	CorBias=RawBias*Correction;
     	hCor->Fill(Correction);
     	hBiasRaw->Fill(RawBias);
     	hBiasCor->Fill(CorBias);
-	hCor_Eta->Fill(Event[1],Correction);
-	hCor_Phi->Fill(Event[2],Correction);
-	hCor_EtaWidth->Fill(Event[3],Correction);
-	hCor_PhiWidth->Fill(Event[4],Correction);
-	hCor_R9->Fill(Event[5],Correction);
-	hCor_Nvtx->Fill(Event[0],Correction);
-	double Pt=Event[34];
+	hCor_Eta->Fill(Eta,Correction);
+	hCor_Phi->Fill(Phi,Correction);
+	hCor_EtaWidth->Fill(EtaWidth,Correction);
+	hCor_PhiWidth->Fill(PhiWidth,Correction);
+	hCor_R9->Fill(R9,Correction);
+	hCor_Nvtx->Fill(Nvtx,Correction);
 	for(int i=0;i<10;i++){
-	if (Pt>i*10 && Pt<(i+1)*10) HistPt[i]->Fill(CorBias);
+		if (Pt>i*10 && Pt<(i+1)*10 && fabs(Eta)<1.) HistPt1[i]->Fill(CorBias);
+		if (Pt>i*10 && Pt<(i+1)*10 && fabs(Eta)>=1. && fabs(Eta)<1.479) HistPt2[i]->Fill(CorBias);
+		if (Pt>i*10 && Pt<(i+1)*10 && fabs(Eta)>=1.479 && fabs(Eta)<2.) HistPt3[i]->Fill(CorBias);
+		if (Pt>i*10 && Pt<(i+1)*10 && fabs(Eta)>=2. && fabs(Eta)<2.5) HistPt4[i]->Fill(CorBias);
 	}
   }
-  }
-
-  //Compute bias and resolution in function of pt bu fitting the distributions by a double Crystal Ball
   
-  double pt[10];
-  double mean[10];
-  double sigeff[10];
 
-  //create fit function and datahist
-  RooRealVar *bias=new RooRealVar("Ecor/Etrue","Ecor/Etrue",0.5,1.5);
-  const RooArgList *var=new RooArgList(*bias,"");
-  RooRealVar *mu=new RooRealVar("mu","mu",1,0.5,1.5);
-  RooRealVar *sig=new RooRealVar("sig","sig",0.05,0.001,1);
-  RooRealVar *alpha1=new RooRealVar("alpha1","alpha1",0.2,0.,1.);
-  RooRealVar *alpha2=new RooRealVar("alpha2","alpha2",-0.2,-1.,0.);
-  RooRealVar *n1=new RooRealVar("n1","n2",2,1,10);
-  RooRealVar *n2=new RooRealVar("n2","n2",2,1,10);
-  RooRealVar *frac=new RooRealVar("frac","frac",0.5);
-  RooCBShape *CB1=new RooCBShape("cb1","cb1",*bias,*mu,*sig,*alpha1,*n1);
-  RooCBShape *CB2=new RooCBShape("cb2","cb2",*bias,*mu,*sig,*alpha2,*n2);
-  RooArgList *cbs = new RooArgList();
-  RooArgList *coeffs = new RooArgList();
-  cbs->add(*CB1);
-  cbs->add(*CB2);
-  coeffs->add(*frac);
-  RooAddPdf *DoubleCB=new RooAddPdf("Double CB","Double CB",*cbs,*coeffs);
-
-  TCanvas *can7=new TCanvas("c7","c7",1200,600);
-  can7->Divide(5,2); 
-
-  for (int i=0;i<10;i++){
-  pt[i]=5.+i*10.;
-  RooDataHist *HistPtclone=new RooDataHist("dh","dh",*var,HistPt[i]);
-  DoubleCB->fitTo(*HistPtclone); 
-  RooArgSet* paramSet=DoubleCB->getParameters(HistPtclone) ;
-  mean[i]=paramSet->getRealValue("mu"); 
-  sigeff[i]=paramSet->getRealValue("sig"); 
-  //sigeff[i]=effSigma(HistPt[i]);
-  RooPlot* frame = bias->frame(Title(Form("Ecor/Etrue for %i<Pt<%i",i*10,(i+1)*10)));
-  HistPtclone->plotOn(frame) ; 
-  DoubleCB->plotOn(frame);
-  can7->cd(i+1);
-  frame->Draw();
-  delete HistPtclone;
-  }
-
-  can7->SaveAs("plots/PtDistributions.png");
-    
-  //plot results
+  //Plot ECor/Eraw
   TCanvas *can = new TCanvas;
   hCor->Draw();
   hCor->GetXaxis()->SetTitle("Ecor/Eraw");
   hCor->SetLineWidth(2);
   can->SaveAs("plots/Correction.png");
 
+  //Plot Ecor/Etrue compared to Eraw/Etrue
   TCanvas *can2 = new TCanvas;
   hBiasCor->Draw();
   hBiasRaw->Draw("same");
@@ -230,6 +242,7 @@ void RegressionTest::PlotResponse()
   NewPerf->Draw();
   can2->SaveAs("plots/Performance.png");
 
+  //Plot profiles of Ecor/Eraw in function of input variables
   TCanvas *can3 = new TCanvas("","",1200,700);
   can3->Divide(3,2);
   can3->cd(1);
@@ -241,6 +254,7 @@ void RegressionTest::PlotResponse()
   pCor_Eta->GetXaxis()->SetTitle("Eta");
   pCor_Eta->GetYaxis()->SetTitle("Ecor/Eraw");
   pCor_Eta->SetTitle("Profile of Ecor/Eraw vs Eta");
+  pCor_Eta->SetMarkerStyle(3);
   can3->cd(2);
   TProfile *pCor_Phi= new TProfile();
   pCor_Phi=hCor_Phi->ProfileX("",1,-1,"s");
@@ -250,6 +264,7 @@ void RegressionTest::PlotResponse()
   pCor_Phi->GetXaxis()->SetTitle("Phi");
   pCor_Phi->GetYaxis()->SetTitle("Ecor/Eraw");
   pCor_Phi->SetTitle("Profile of Ecor/Eraw vs Phi");
+  pCor_Phi->SetMarkerStyle(3);
   can3->cd(3);
   TProfile *pCor_EtaWidth= new TProfile();
   pCor_EtaWidth=hCor_EtaWidth->ProfileX("",1,-1,"s");
@@ -259,6 +274,7 @@ void RegressionTest::PlotResponse()
   pCor_EtaWidth->GetXaxis()->SetTitle("EtaWidth");
   pCor_EtaWidth->GetYaxis()->SetTitle("Ecor/Eraw");
   pCor_EtaWidth->SetTitle("Profile of Ecor/Eraw vs EtaWidth");
+  pCor_EtaWidth->SetMarkerStyle(3);
   can3->cd(4);
   TProfile *pCor_PhiWidth= new TProfile();
   pCor_PhiWidth=hCor_PhiWidth->ProfileX("",1,-1,"s");
@@ -268,6 +284,7 @@ void RegressionTest::PlotResponse()
   pCor_PhiWidth->GetXaxis()->SetTitle("PhiWidth");
   pCor_PhiWidth->GetYaxis()->SetTitle("Ecor/Eraw");
   pCor_PhiWidth->SetTitle("Profile of Ecor/Eraw vs PhiWidth");
+  pCor_PhiWidth->SetMarkerStyle(3);
   can3->cd(5);
   TProfile *pCor_R9= new TProfile();
   pCor_R9=hCor_R9->ProfileX("",1,-1,"s");
@@ -277,6 +294,7 @@ void RegressionTest::PlotResponse()
   pCor_R9->GetXaxis()->SetTitle("R9");
   pCor_R9->GetYaxis()->SetTitle("Ecor/Eraw");
   pCor_R9->SetTitle("Profile of Ecor/Eraw vs R9");
+  pCor_R9->SetMarkerStyle(3);
   can3->cd(6);
   TProfile *pCor_Nvtx= new TProfile();
   pCor_Nvtx=hCor_Nvtx->ProfileX("",1,-1,"s");
@@ -286,33 +304,168 @@ void RegressionTest::PlotResponse()
   pCor_Nvtx->GetXaxis()->SetTitle("Nvtx");
   pCor_Nvtx->GetYaxis()->SetTitle("Ecor/Eraw");
   pCor_Nvtx->SetTitle("Profile of Ecor/Eraw vs Nvtx");
+  pCor_Nvtx->SetMarkerStyle(3);  
   can3->SaveAs("plots/Correction_Variables.png");
 
-  TCanvas *can4=new TCanvas("c4","c4",1100,500);
-  can4->Divide(2,0);
-  can4->cd(1);
-  TGraph *graphCor_Pt = new TGraph(10,pt,mean);
-  graphCor_Pt->Draw("AL*");
-  graphCor_Pt->SetMarkerStyle(8);
-  graphCor_Pt->GetXaxis()->SetTitle("pt");
-  graphCor_Pt->GetYaxis()->SetTitle("Ecor/Etrue mean");
-  graphCor_Pt->SetTitle("Ecor/Etrue peak value vs Pt");  
-  can4->cd(2);
-  TGraph *graphRes_Pt = new TGraph(10,pt,sigeff);
-  graphRes_Pt->Draw("AL*");
-  graphRes_Pt->SetMarkerStyle(8);
-  graphRes_Pt->GetXaxis()->SetTitle("pt");
-  graphRes_Pt->GetYaxis()->SetTitle("effective sigma");
-  graphRes_Pt->SetTitle("Ecor/Etrue effective sigma vs Pt");  
-  can4->SaveAs("plots/Correction_Pt.png");
 
-  TCanvas *can5=new TCanvas("c5","c5",1200,600);
-  can5->Divide(5,2);
+  //Compute and Plot Bias and Resolution in function of Pt by fitting the distributions by a double Crystal Ball, in for eta bins
+
+  double pt1[10];
+  double mean1[10];
+  double sigeff1[10];
+  double pt2[10];
+  double mean2[10];
+  double sigeff2[10];
+  double pt3[10];
+  double mean3[10];
+  double sigeff3[10];
+  double pt4[10];
+  double mean4[10];
+  double sigeff4[10];
+  
+  //create fit function 
+  RooRealVar *bias=new RooRealVar("Ecor/Etrue","Ecor/Etrue",0.8,1.2);
+  const RooArgList *var=new RooArgList(*bias,"");
+  RooRealVar *mu=new RooRealVar("mu","mu",1,0.5,1.5);
+  RooRealVar *sig=new RooRealVar("sig","sig",0.05,0.001,1);
+  RooRealVar *alpha1=new RooRealVar("alpha1","alpha1",2.,0,10);
+  RooRealVar *alpha2=new RooRealVar("alpha2","alpha2",1.,0,10);
+  RooRealVar *n1=new RooRealVar("n1","n2",2,0,5);
+  RooRealVar *n2=new RooRealVar("n2","n2",2,0,5);
+  RooDoubleCB *DoubleCB=new RooDoubleCB("doubleCB","doubleCB",*bias,*mu,*sig,*alpha1,*n1,*alpha2,*n2);
+  RooArgSet *paramSet=new RooArgSet;
+ 
+  TCanvas *can7 = new TCanvas("can7","can7",1200,600);
+  can7->Divide(5,2);
+  TCanvas *can8 = new TCanvas("can8","can8",1200,600);
+  can8->Divide(5,2);
+  TCanvas *can9 = new TCanvas("can9","can9",1200,600);
+  can9->Divide(5,2);
+  TCanvas *can10 = new TCanvas("can10","can10",1200,600);
+  can10->Divide(5,2);
+  
   for (int i=0;i<10;i++){
-  can5->cd(i+1);
-  HistPt[i]->Draw();
+  	
+	pt1[i]=5.+i*10.;
+  	RooDataHist *HistPtclone1=new RooDataHist("","",*var,HistPt1[i]);
+  	DoubleCB->fitTo(*HistPtclone1); 
+  	paramSet=DoubleCB->getParameters(HistPtclone1) ;
+  	mean1[i]=paramSet->getRealValue("mu"); 
+  	sigeff1[i]=effSigma(HistPt1[i]);
+  	can7->cd(i+1);
+	RooPlot *plot1=bias->frame(Title(Form("%i<Pt<%i and 0<|eta|<1",i*10,(i+1)*10)));
+        HistPtclone1->plotOn(plot1);
+	DoubleCB->plotOn(plot1);
+	plot1->Draw();
+
+        pt2[i]=5.+i*10.;
+  	RooDataHist *HistPtclone2=new RooDataHist("","",*var,HistPt2[i]);
+  	DoubleCB->fitTo(*HistPtclone2); 
+  	paramSet=DoubleCB->getParameters(HistPtclone2) ;
+  	mean2[i]=paramSet->getRealValue("mu"); 
+  	sigeff2[i]=effSigma(HistPt2[i]);
+	can8->cd(i+1);
+	RooPlot *plot2=bias->frame(Title(Form("%i<Pt<%i and 1<|eta|<1.48",i*10,(i+1)*10)));
+        HistPtclone2->plotOn(plot2);
+	DoubleCB->plotOn(plot2);
+	plot2->Draw();
+
+  	pt3[i]=5.+i*10.;
+  	RooDataHist *HistPtclone3=new RooDataHist("","",*var,HistPt3[i]);
+  	DoubleCB->fitTo(*HistPtclone3); 
+  	paramSet=DoubleCB->getParameters(HistPtclone3) ;
+  	mean3[i]=paramSet->getRealValue("mu"); 
+  	sigeff3[i]=effSigma(HistPt3[i]);
+	can9->cd(i+1);
+	RooPlot *plot3=bias->frame(Title(Form("%i<Pt<%i and 1.48<|eta|<2",i*10,(i+1)*10)));
+        HistPtclone3->plotOn(plot3);
+	DoubleCB->plotOn(plot3);
+	plot3->Draw();
+
+  	pt4[i]=5.+i*10.;
+  	RooDataHist *HistPtclone4=new RooDataHist("","",*var,HistPt4[i]);
+  	DoubleCB->fitTo(*HistPtclone4); 
+  	paramSet=DoubleCB->getParameters(HistPtclone4) ;
+  	mean4[i]=paramSet->getRealValue("mu"); 
+  	sigeff4[i]=effSigma(HistPt4[i]);
+	can10->cd(i+1);
+	RooPlot *plot4=bias->frame(Title(Form("%i<Pt<%i and 2<|eta|<2.5",i*10,(i+1)*10)));
+        HistPtclone4->plotOn(plot4);
+	DoubleCB->plotOn(plot4);
+	plot4->Draw();
+
   }
-  gStyle->SetOptStat(1);
-  can5->SaveAs("plots/CorPtRaw.png");
+
+  can7->SaveAs("plots/PtDistributions1.png");
+  can8->SaveAs("plots/PtDistributions2.png");
+  can9->SaveAs("plots/PtDistributions3.png");
+  can10->SaveAs("plots/PtDistributions4.png");
+
+
+  TCanvas *can4=new TCanvas;
+  can4->Divide(2,2);
+  can4->cd(1);
+  TGraph *graphRes_Pt1 = new TGraph(10,pt1,sigeff1);
+  graphRes_Pt1->Draw("AL*");
+  graphRes_Pt1->SetMarkerStyle(8);
+  graphRes_Pt1->GetXaxis()->SetTitle("pt");
+  graphRes_Pt1->GetYaxis()->SetTitle("Ecor/Etrue effective width");
+  graphRes_Pt1->SetTitle("Ecor/Etrue effective width vs Pt for 0<|eta|<1"); 
+  can4->cd(2);
+  TGraph *graphRes_Pt2 = new TGraph(10,pt2,sigeff2);
+  graphRes_Pt2->Draw("AL*");
+  graphRes_Pt2->SetMarkerStyle(8);
+  graphRes_Pt2->GetXaxis()->SetTitle("pt");
+  graphRes_Pt2->GetYaxis()->SetTitle("Ecor/Etrue effective width");
+  graphRes_Pt2->SetTitle("Ecor/Etrue effective width vs Pt for 1<|eta|<1.48"); 
+  can4->cd(3);
+  TGraph *graphRes_Pt3 = new TGraph(10,pt3,sigeff3);
+  graphRes_Pt3->Draw("AL*");
+  graphRes_Pt3->SetMarkerStyle(8);
+  graphRes_Pt3->GetXaxis()->SetTitle("pt");
+  graphRes_Pt3->GetYaxis()->SetTitle("Ecor/Etrue effective width");
+  graphRes_Pt3->SetTitle("Ecor/Etrue effective width vs Pt for 1.48<|eta|<2"); 
+  can4->cd(4);
+  TGraph *graphRes_Pt4 = new TGraph(10,pt4,sigeff4);
+  graphRes_Pt4->Draw("AL*");
+  graphRes_Pt4->SetMarkerStyle(8);
+  graphRes_Pt4->GetXaxis()->SetTitle("pt");
+  graphRes_Pt4->GetYaxis()->SetTitle("Ecor/Etrue effective width");
+  graphRes_Pt4->SetTitle("Ecor/Etrue effective width vs Pt for 2<|eta|<2.5"); 
+  can4->SaveAs("plots/Resolution_Pt.png");
+
+  TCanvas *can5=new TCanvas;
+  can5->Divide(2,2);
+  can5->cd(1);
+  TGraph *graphCor_Pt1 = new TGraph(10,pt1,mean1);
+  graphCor_Pt1->Draw("AL*");
+  graphCor_Pt1->SetMarkerStyle(8);
+  graphCor_Pt1->GetXaxis()->SetTitle("pt");
+  graphCor_Pt1->GetYaxis()->SetTitle("Ecor/Etrue mean");
+  graphCor_Pt1->SetTitle("Ecor/Etrue peak value vs Pt for 0<|eta|<1"); 
+  can5->cd(2);
+  TGraph *graphCor_Pt2 = new TGraph(10,pt2,mean2);
+  graphCor_Pt2->Draw("AL*");
+  graphCor_Pt2->SetMarkerStyle(8);
+  graphCor_Pt2->GetXaxis()->SetTitle("pt");
+  graphCor_Pt2->GetYaxis()->SetTitle("Ecor/Etrue mean");
+  graphCor_Pt2->SetTitle("Ecor/Etrue peak value vs Pt for 1<|eta|<1.48"); 
+  can5->cd(3);
+  TGraph *graphCor_Pt3 = new TGraph(10,pt3,mean3);
+  graphCor_Pt3->Draw("AL*");
+  graphCor_Pt3->SetMarkerStyle(8);
+  graphCor_Pt3->GetXaxis()->SetTitle("pt");
+  graphCor_Pt3->GetYaxis()->SetTitle("Ecor/Etrue mean");
+  graphCor_Pt3->SetTitle("Ecor/Etrue peak value vs Pt for 1.48<|eta|<2"); 
+  can5->cd(4);
+  TGraph *graphCor_Pt4 = new TGraph(10,pt4,mean4);
+  graphCor_Pt4->Draw("AL*");
+  graphCor_Pt4->SetMarkerStyle(8);
+  graphCor_Pt4->GetXaxis()->SetTitle("pt");
+  graphCor_Pt4->GetYaxis()->SetTitle("Ecor/Etrue mean");
+  graphCor_Pt4->SetTitle("Ecor/Etrue peak value vs Pt for 2<|eta|<2.5"); 
+  can5->SaveAs("plots/Bias_Pt.png");  
 
 }
+
+ 

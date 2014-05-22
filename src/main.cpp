@@ -46,46 +46,6 @@ int main(int argc, char** argv)
         std::cout<<"FATAL: A fatal error occured - QUIT -\n";
     else
         std::cout<<"- Finish - All good -\n";
-/*
-  TFile *file = new TFile("GBR_Clustering_70pre11_Photons_EG_results.root","READ");
-  
-  const std::vector<std::string> *varlist = (std::vector<std::string>*)file->Get("varlistEB");
-  const GBRForest *forest = (GBRForest*)file->Get("EBCorrection");
-  
-  int numvars = varlist->size();
-  int numtrees = forest->Trees().size();
-  
-  printf("liste des variables \n");
-  for (int ivar = 0; ivar<numvars; ++ivar) {
-    printf("%i: %s\n",ivar, varlist->at(ivar).c_str());
-  }
-  printf("nombre de trees : %i \n",numtrees); 
-  
-  TTree *dtree;
-  TFile *fdin = TFile::Open("~/eos/cms/store/group/phys_egamma/lgray/PhotonRegressionTrees_23012014_v2-runPhotonRegressionTrees_cfg/runPhotonRegressionTrees_cfg-step4_RECO_EI-0006AD69-4A69-E211-922D-002354EF3BE4.root");
-  TDirectory *ddir = (TDirectory*)fdin->FindObjectAny("egSCTree");
-  dtree = (TTree*)ddir->Get("SuperClusterTree");  
-    
-
-  float* Input;
-  Input = new float[numvars];
-  dtree->SetBranchAddress("scEta",&Input[0]);  
-  dtree->SetBranchAddress("scPhi",&Input[1]);  
-  dtree->SetBranchAddress("scEtaWidth",&Input[2]);  
-  dtree->SetBranchAddress("scPhiWidth",&Input[3]);
-  double Output;
-
-  for (int i=0;i<100;i++){
-  dtree->GetEntry(i); 
-  //printf(" eta =%f phi =%f etawidth = %f phiwidth = %f \n",scEta,scPhi, scEtaWidth, scPhiWidth);
-  //Input[0]=scEta;
-  //Input[1]=scPhi;
-  //Input[2]=scEtaWidth;
-  //Input[3]=scPhiWidth;
-  Output=forest->GetResponse(Input);
-  printf("Ecor/Eraw = %f \n",Output);
-  }
-*/
 
     RegressionTest test;
     test.init("GBR_Clustering_70pre11_Photons_EG_results.root","~/eos/cms/store/group/phys_egamma/lgray/PhotonRegressionTrees_23012014_v2-runPhotonRegressionTrees_cfg/runPhotonRegressionTrees_cfg-step4_RECO_EI-FA47A89F-906A-E211-9ABF-003048FFCBB0.root","egSCTree","SuperClusterTree");

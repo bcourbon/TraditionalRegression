@@ -15,11 +15,11 @@ class RegressionTest
 
         void init(std::string RegFileName,std::string DataFileName,std::string DirName,std::string TreeName);
         void PlotResponse();
+    const std::vector<std::string> *varlist;
 
     private:
 
     const GBRForest* forest;
-    const std::vector<std::string> *varlist;
     TTree *tree;
     int numvars;
     int numtrees;

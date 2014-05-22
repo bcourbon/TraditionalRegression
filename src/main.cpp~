@@ -88,7 +88,7 @@ int main(int argc, char** argv)
 */
 
     RegressionTest test;
-    test.init("GBR_Clustering_70pre11_Photons_EG_results.root","~/eos/cms/store/group/phys_egamma/lgray/PhotonRegressionTrees_23012014_v2-runPhotonRegressionTrees_cfg/runPhotonRegressionTrees_cfg-step4_RECO_EI-0006AD69-4A69-E211-922D-002354EF3BE4.root","egSCTree","SuperClusterTree");
+    test.init("GBR_Clustering_70pre11_Photons_EG_results.root","~/eos/cms/store/group/phys_egamma/lgray/PhotonRegressionTrees_23012014_v2-runPhotonRegressionTrees_cfg/runPhotonRegressionTrees_cfg-step4_RECO_EI-FA47A89F-906A-E211-9ABF-003048FFCBB0.root","egSCTree","SuperClusterTree");
     test.PlotResponse();
        
     return status;

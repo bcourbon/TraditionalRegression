@@ -26,6 +26,7 @@ GBRTrainer.cpp\
 GBRTree.cpp\
 TMVAMaker.cpp\
 RegressionTest.cpp\
+RooDoubleCB.cpp\
 GBRMaker.cpp\
 ParReader.cpp\
 RegressionManager.cpp\
@@ -63,9 +64,4 @@ obj/libDictionary_C.so: ./include/libDictionary.C
 	@echo "> Generating dictionary"
 	@cd include && root -b -q libDictionary.C++
 	@mv ./include/libDictionary_C.so ./obj/
-
-
-
-
-
 

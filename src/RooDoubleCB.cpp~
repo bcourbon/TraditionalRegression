@@ -36,9 +36,22 @@ ClassImp(RooDoubleCB)
  } 
 
 
- RooAbsPdf* RooDoubleCB::makePdf() 
+ RooDoubleCB::RooDoubleCB(const RooDoubleCB& other, const char* name) :  
+   RooAbsPdf(other,name), 
+   x("x",this,other.x),
+   mean("mean",this,other.mean),
+   sigma("sigma",this,other.sigma),
+   alpha1("alpha1",this,other.alpha1),
+   n1("n1",this,other.n1),
+   alpha2("alpha2",this,other.alpha2),
+   n2("n2",this,other.n2)
  { 
+ } 
 
+
+
+ Double_t RooDoubleCB::evaluate() const 
+ { 
    double t = (x-mean)/sigma;
    double val = -99.;
    if(t>-alpha1 && t<alpha2){
@@ -48,13 +61,9 @@ ClassImp(RooDoubleCB)
      val = exp(-0.5*alpha1*alpha1)*pow(1. - alpha1invn1*(alpha1+t), -n1);
    }else if(t>=alpha2){
      double alpha2invn2 = alpha2/n2;
-     val = exp(-0.5*alpha2*alpha2)*pow(1. - alpha2invn2*(alpha2-t), -n2);
-    } 
-
-cout<<" x "<<x<<" t "<<t<<" gland "<<endl;
-
-   return val;
-
+     val = exp(-0.5*alpha2*alpha2)*pow(1. - alpha2invn2*(alpha2-t), -n2); 
+   }
+   return val ; 
  } 
 
 
